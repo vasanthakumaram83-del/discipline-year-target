@@ -1,0 +1,148 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mongodb"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                String           @id @default(auto()) @map("_id") @db.ObjectId
+  email             String           @unique
+  passwordHash      String
+  name              String
+  recoveryMode      String           @default("normal")
+  allowNegativeGain Boolean          @default(false)
+  createdAt         DateTime         @default(now())
+  tasks             DailyTask[]
+  journals          JournalEntry[]
+  sleeps            SleepRecord[]
+  ledger            GainLedger[]
+  excuses           ExcuseLedger[]
+  summaries         DailySummary[]
+  recoveries        RecoveryRecord[]
+
+}
+
+model TaskDefinition {
+  id              String  @id @map("_id")
+  title           String
+  category        String
+  startTime       String?
+  endTime         String?
+  plannedMinutes  Int
+  requiresContent Boolean @default(true)
+  order           Int
+  active          Boolean @default(true)
+}
+
+model DailyTask {
+  id            String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId        String   @db.ObjectId
+  date          String
+  taskId        String
+  status        String   @default("pending")
+  actualStart   String?
+  actualEnd     String?
+  actualMinutes Int      @default(0)
+  content       String   @default("")
+  notes         String   @default("")
+  subject       String?
+  focus         Int?
+  difficulty    Int?
+  updatedAt     DateTime @updatedAt
+  createdAt     DateTime @default(now())
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, date, taskId])
+  @@index([userId, date])
+  @@index([userId, taskId])
+}
+
+model JournalEntry {
+  id           String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId       String   @db.ObjectId
+  date         String
+  reflection   String   @default("")
+  topics       String   @default("")
+  achievements String   @default("")
+  problems     String   @default("")
+  tomorrowPlan String   @default("")
+  updatedAt    DateTime @updatedAt
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, date])
+}
+
+model SleepRecord {
+  id              String  @id @default(auto()) @map("_id") @db.ObjectId
+  userId          String  @db.ObjectId
+  date            String
+  sleepTime       String?
+  wakeTime        String?
+  durationMinutes Int     @default(0)
+  notes           String  @default("")
+  user            User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, date])
+}
+
+model GainLedger {
+  id           String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId       String   @db.ObjectId
+  date         String
+  type         String
+  minutes      Int
+  description  String
+  balanceAfter Int
+  createdAt    DateTime @default(now())
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, date])
+}
+
+model ExcuseLedger {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId      String   @db.ObjectId
+  date        String
+  hours       Float
+  reason      String
+  description String
+  gainBefore  Float
+  gainAfter   Float
+  createdAt   DateTime @default(now())
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, date])
+}
+
+model DailySummary {
+  id               String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId           String   @db.ObjectId
+  date             String
+  scheduledMinutes Int      @default(450)
+  actualMinutes    Int      @default(0)
+  gainMinutes      Int      @default(0)
+  completedTasks   Int      @default(0)
+  missedTasks      Int      @default(0)
+  updatedAt        DateTime @updatedAt
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, date])
+}
+
+model RecoveryRecord {
+  id         String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId     String   @db.ObjectId
+  date       String
+  missedDate String
+  taskId     String
+  minutes    Int
+  note       String   @default("")
+  createdAt  DateTime @default(now())
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, date])
+  @@index([userId, taskId])
+}

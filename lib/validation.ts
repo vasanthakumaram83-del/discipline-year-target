@@ -1,0 +1,2 @@
+import {z} from "zod";
+export const taskUpdateSchema=z.object({date:z.string().regex(/^\d{4}-\d{2}-\d{2}$/),taskId:z.string(),status:z.enum(["pending","completed","missed","partial"]),actualStart:z.string().nullable().optional(),actualEnd:z.string().nullable().optional(),actualMinutes:z.number().int().min(0).max(1440),content:z.string().max(4000),notes:z.string().max(4000),subject:z.string().max(120).nullable().optional(),focus:z.number().int().min(1).max(5).nullable().optional(),difficulty:z.number().int().min(1).max(5).nullable().optional()});

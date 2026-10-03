@@ -1,0 +1,12 @@
+import {prisma} from "@/lib/db";
+import {tasks} from "@/lib/domain";
+export async function syncDailySummaries(userId:string){
+ const [records,recoveries,user,ledger]=await Promise.all([prisma.dailyTask.findMany({where:{userId},orderBy:{date:"asc"}}),prisma.recoveryRecord.findMany({where:{userId},orderBy:{date:"asc"}}),prisma.user.findUnique({where:{id:userId},select:{recoveryMode:true}}),prisma.gainLedger.findMany({where:{userId},orderBy:{createdAt:"asc"}})]);
+ const multiplier=user?.recoveryMode==="strict"?2:1;
+ const rowsByDate=new Map<string,typeof records>();for(const row of records){const rows=rowsByDate.get(row.date)||[];rows.push(row);rowsByDate.set(row.date,rows)}
+ const dueByDate=new Map<string,number>(),recoveredByDate=new Map<string,number>();
+ for(const row of records){if(row.status==="missed"||row.status==="partial"){const planned=tasks.find(t=>t.id===row.taskId)?.minutes||0;dueByDate.set(row.date,(dueByDate.get(row.date)||0)+Math.max(0,planned-row.actualMinutes)*multiplier)}}
+ for(const row of recoveries)recoveredByDate.set(row.date,(recoveredByDate.get(row.date)||0)+row.minutes);
+ const dates=[...new Set([...rowsByDate.keys(),...recoveredByDate.keys()])].sort();let pending=0;let balance=ledger.reduce((n,r)=>n+(r.type==="gain"?r.minutes:-r.minutes),0);
+ for(const date of dates){pending=Math.max(0,pending+(dueByDate.get(date)||0)-(recoveredByDate.get(date)||0));const rows=rowsByDate.get(date)||[];const actual=rows.reduce((n,r)=>n+(["study","learning"].includes(tasks.find(t=>t.id===r.taskId)?.category||"")?r.actualMinutes:0),0);const gain=Math.max(0,actual-450-pending);const previous=await prisma.dailySummary.findUnique({where:{userId_date:{userId,date}}});const delta=gain-(previous?.gainMinutes||0);await prisma.dailySummary.upsert({where:{userId_date:{userId,date}},create:{userId,date,actualMinutes:actual,gainMinutes:gain,completedTasks:rows.filter(r=>r.status==="completed").length,missedTasks:rows.filter(r=>r.status==="missed"||r.status==="partial").length},update:{actualMinutes:actual,gainMinutes:gain,completedTasks:rows.filter(r=>r.status==="completed").length,missedTasks:rows.filter(r=>r.status==="missed"||r.status==="partial").length}});if(delta){await prisma.gainLedger.create({data:{userId,date,type:delta>0?"gain":"correction",minutes:Math.abs(delta),description:delta>0?"Study surplus earned after recovery obligations":"Correction after routine, recovery or settings update",balanceAfter:balance+delta}});balance+=delta}}
+}

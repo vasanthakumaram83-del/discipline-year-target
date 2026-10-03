@@ -1,0 +1,4 @@
+import {createHmac,timingSafeEqual} from "node:crypto";
+function sessionSecret(){const secret=process.env.SESSION_SECRET;if(!secret)throw new Error("SESSION_SECRET must be configured.");return secret;}
+export function signSession(userId:string){const payload=Buffer.from(JSON.stringify({userId,exp:Date.now()+30*86400000})).toString("base64url");return payload+"."+createHmac("sha256",sessionSecret()).update(payload).digest("base64url");}
+export function verifySession(token?:string){try{if(!token)return null;const [payload,sig]=token.split(".");if(!payload||!sig)return null;const expected=createHmac("sha256",sessionSecret()).update(payload).digest("base64url");if(!timingSafeEqual(Buffer.from(sig),Buffer.from(expected)))return null;const data=JSON.parse(Buffer.from(payload,"base64url").toString());return data.exp>Date.now()?data.userId as string:null;}catch{return null;}}
